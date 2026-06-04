@@ -1,9 +1,10 @@
 from openai import OpenAI
 from pathlib import Path
 from mdtopdf import convertMD
+#
 
-KEY = "API_KEY"
-SAVEPDF = False # Сохранять ли в ПДФ в папку pdf/
+KEY = "sk-cef00470115144bdb24cfd4c267205b2"
+SAVEPDF = False  # Сохранять ли в ПДФ в папку pdf/
 
 client = OpenAI(api_key=KEY, base_url="https://api.deepseek.com")
 
