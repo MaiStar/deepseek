@@ -7,6 +7,22 @@ import sys
 import time  # для измерения времени
 from datetime import datetime
 
+
+def get_next_counter():
+    answer_dir = Path("answer/")
+    existing = list(answer_dir.glob("answer*.md"))
+    if not existing:
+        return 1
+    numbers = []
+    for f in existing:
+        try:
+            num = int(f.stem.replace("answer", ""))
+            numbers.append(num)
+        except:
+            continue
+    return max(numbers) + 1 if numbers else 1
+
+
 # --- Конфигурация ---
 # API_KEY = os.environ.get("DEEPSEEK_API_KEY")
 API_KEY = "sk-cef00470115144bdb24cfd4c267205b2"  # Лучше вынеси в .env!
@@ -15,6 +31,7 @@ if not API_KEY:
     sys.exit(1)
 
 MODEL_NAME = "deepseek-v4-flash"   # актуальная модель
+# MODEL_NAME = "deepseek-v4-pro"   # актуальная модель
 MAX_TOKENS = 8096                   # максимальная длина ответа
 TEMPERATURE = 0.1                   # точность (0.0-0.3 для кода/фактов)
 SAVEPDF = False
@@ -24,7 +41,8 @@ client = OpenAI(api_key=API_KEY, base_url="https://api.deepseek.com")
 Path("answer/").mkdir(parents=True, exist_ok=True)
 
 messages = []
-conversation_counter = 0
+conversation_counter = get_next_counter()   # <-- начинаем с правильного номера
+
 
 # --- Функция для сохранения ответа + статистики в один .md файл ---
 
