@@ -4,11 +4,12 @@ from pathlib import Path
 from mdtopdf import convertMD
 import os
 import sys
+import time  # для измерения времени
+from datetime import datetime
 
 # --- Конфигурация ---
 # API_KEY = os.environ.get("DEEPSEEK_API_KEY")
-# <-- Лучше вынеси в переменную окружения!
-API_KEY = "sk-cef00470115144bdb24cfd4c267205b2"
+API_KEY = "sk-cef00470115144bdb24cfd4c267205b2"  # Лучше вынеси в .env!
 if not API_KEY:
     print("Ошибка: Не найден API ключ. Установите переменную окружения DEEPSEEK_API_KEY.")
     sys.exit(1)
@@ -25,30 +26,42 @@ Path("answer/").mkdir(parents=True, exist_ok=True)
 messages = []
 conversation_counter = 0
 
-# --- Функция вывода статистики ---
+# --- Функция для сохранения ответа + статистики в один .md файл ---
 
 
-def print_usage_stats(response, model_name, temperature, max_tokens, history_len):
-    usage = response.usage
-    print("\n📊 Статистика запроса:")
-    print(f"   Модель: {model_name}")
-    print(f"   Температура: {temperature}")
-    print(f"   Max tokens: {max_tokens}")
-    print(f"   Токенов в запросе (prompt): {usage.prompt_tokens}")
-    print(f"   Токенов в ответе (completion): {usage.completion_tokens}")
-    print(f"   Всего токенов: {usage.total_tokens}")
-    print(f"   Сообщений в истории: {history_len}")
-    print("-" * 40)
+def save_answer_with_stats(counter, assistant_response, usage, elapsed_time, model, temperature, max_tokens, history_len):
+    # Формируем содержимое файла: сначала ответ модели, затем блок статистики
+    stats_block = f"""
+
+---
+## 📊 Статистика запроса
+- **Модель**: {model}
+- **Температура**: {temperature}
+- **Max tokens**: {max_tokens}
+- **Токенов в запросе (prompt)**: {usage.prompt_tokens}
+- **Токенов в ответе (completion)**: {usage.completion_tokens}
+- **Всего токенов**: {usage.total_tokens}
+- **Сообщений в истории**: {history_len}
+- **Время выполнения запроса**: {elapsed_time:.3f} секунд
+- **Время запроса (локальное)**: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+---
+"""
+    full_content = assistant_response + stats_block
+
+    file_path = f"answer/answer{counter}.md"
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write(full_content)
+    return file_path
 
 
 # --- Приветствие с настройками ---
-print("=" * 50)
+print("=" * 60)
 print(f"🤖 DeepSeek чат-бот запущен")
 print(f"   Модель: {MODEL_NAME}")
 print(f"   Температура: {TEMPERATURE} (низкая → точные ответы)")
 print(f"   Лимит ответа: {MAX_TOKENS} токенов")
 print(f"   Сохранять PDF: {'Да' if SAVEPDF else 'Нет'}")
-print("=" * 50)
+print("=" * 60)
 print("Введите 'выход' или 'exit' для завершения.\n")
 
 while True:
@@ -63,39 +76,61 @@ while True:
         continue
 
     messages.append({"role": "user", "content": user_input})
-    print("DeepSeek печатает...")
+    print("DeepSeek печатает...", end="", flush=True)
 
     try:
+        # Засекаем время перед запросом
+        start_time = time.time()
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=messages,
             max_tokens=MAX_TOKENS,
             temperature=TEMPERATURE,
         )
+        end_time = time.time()
+        elapsed = end_time - start_time
 
         assistant_response = response.choices[0].message.content
         messages.append({"role": "assistant", "content": assistant_response})
 
-        # Выводим ответ
-        print(f"DeepSeek: {assistant_response}")
+        # Извлекаем usage
+        usage = response.usage
+        history_len = len(messages)
 
-        # Показываем статистику использования токенов
-        print_usage_stats(
-            response,
+        # --- Вывод в консоль ---
+        print("\n" + "=" * 60)
+        print(f"📝 Ответ DeepSeek:\n{assistant_response}")
+        print("\n📊 Статистика:")
+        print(f"   Модель: {MODEL_NAME}")
+        print(f"   Температура: {TEMPERATURE}")
+        print(f"   Max tokens: {MAX_TOKENS}")
+        print(f"   Токенов в запросе: {usage.prompt_tokens}")
+        print(f"   Токенов в ответе: {usage.completion_tokens}")
+        print(f"   Всего токенов: {usage.total_tokens}")
+        print(f"   Сообщений в истории: {history_len}")
+        print(f"   ⏱️ Время выполнения: {elapsed:.3f} сек")
+        print("=" * 60)
+
+        # --- Сохраняем ответ + статистику в .md файл ---
+        conversation_counter += 1
+        saved_path = save_answer_with_stats(
+            conversation_counter,
+            assistant_response,
+            usage,
+            elapsed,
             MODEL_NAME,
             TEMPERATURE,
             MAX_TOKENS,
-            len(messages)  # количество сообщений в истории
+            history_len
         )
+        print(f"💾 Ответ сохранён в {saved_path}")
 
-        conversation_counter += 1
-        with open(f'answer/answer{conversation_counter}.md', 'w', encoding='utf-8') as file:
-            file.write(assistant_response)
-
+        # --- Дополнительно PDF, если нужно ---
         if SAVEPDF:
             convertMD(
                 f"answer/answer{conversation_counter}", assistant_response)
+            print(f"📄 PDF сохранён в pdf/answer{conversation_counter}.pdf")
 
     except Exception as e:
-        print(f"❌ Ошибка при обращении к API: {e}")
-        messages.pop()  # удаляем последний вопрос, чтобы не засорять историю
+        print(f"\n❌ Ошибка при обращении к API: {e}")
+        messages.pop()  # удаляем последний вопрос
