@@ -25,7 +25,7 @@ def get_next_counter():
 
 # --- Конфигурация ---
 # API_KEY = os.environ.get("DEEPSEEK_API_KEY")
-API_KEY = "sk-cef00470115144bdb24cfd4c267205b2"  # Лучше вынеси в .env!
+API_KEY = "DEEPSEEK_API_KEY"  # Лучше вынеси в .env!
 if not API_KEY:
     print("Ошибка: Не найден API ключ. Установите переменную окружения DEEPSEEK_API_KEY.")
     sys.exit(1)
